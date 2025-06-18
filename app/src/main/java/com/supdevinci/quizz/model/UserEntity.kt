@@ -9,6 +9,7 @@ data class UserEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val pseudo: String,
     val score: Int = 0,
+    val maxScore: Int = 0,
     val createdAt: Date,
     val updatedAt: Date? = null
 )

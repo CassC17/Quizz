@@ -1,4 +1,4 @@
-package com.supdevinci.quizz.data
+package com.supdevinci.quizz.utils
 
 import androidx.room.TypeConverter
 import java.util.Date

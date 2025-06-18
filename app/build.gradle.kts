@@ -57,6 +57,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.5")
 
     implementation ("androidx.room:room-runtime:2.5.2")
+    implementation(libs.androidx.room.runtime.android)
     kapt ("androidx.room:room-compiler:2.5.2")
     implementation(libs.androidx.runtime.livedata)
 

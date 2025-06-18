@@ -1,38 +1,141 @@
 package com.supdevinci.quizz.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.supdevinci.quizz.data.RetrofitInstance
+import com.supdevinci.quizz.data.TokenManager
+import com.supdevinci.quizz.data.local.UserDatabase
 import com.supdevinci.quizz.model.QuizQuestion
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.util.Date
 
-class QuizViewModel: ViewModel()  {
+class QuizViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _question = MutableStateFlow<QuizQuestion?>(null)
     val question: StateFlow<QuizQuestion?> = _question
 
+    private val _answers = MutableStateFlow<List<String>>(emptyList())
+    val answers: StateFlow<List<String>> = _answers
+
+    private val _currentIndex = MutableStateFlow(0)
+    val currentIndex: StateFlow<Int> = _currentIndex
+
+    private val _score = MutableStateFlow(0)
+    val score: StateFlow<Int> = _score
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    fun fetchQuestion() {
+    private val _selectedAnswer = MutableStateFlow<String?>(null)
+    val selectedAnswer: StateFlow<String?> = _selectedAnswer
+
+    private val _isAnswerValidated = MutableStateFlow(false)
+    val isAnswerValidated: StateFlow<Boolean> = _isAnswerValidated
+
+    private val userDao = UserDatabase.getDatabase(application.applicationContext).userDao()
+
+    private var questions: List<QuizQuestion> = emptyList()
+    private var pseudo: String? = null
+
+    fun initUser(pseudo: String) {
+        this.pseudo = pseudo
+    }
+
+    fun loadQuestions(category: Int?, difficulty: String) {
         viewModelScope.launch {
-            try {
-                val response = RetrofitInstance.apiService.getQuestion() //reponse.isNoEmpty()
-                if (response.response_code == 0) {
-                    val questionResult = response.results.firstOrNull()
-                    if (questionResult != null) {
-                        _question.value = questionResult
-                        _errorMessage.value = null
-                    } else {
-                        _errorMessage.value = "not found"
+            runCatching {
+                val token = TokenManager.getToken()
+                val response = RetrofitInstance.apiService.getQuestion(
+                    amount = 10,
+                    category = category,
+                    difficulty = difficulty,
+                    token = token
+                )
+                when (response.response_code) {
+                    0 -> {
+                        questions = response.results
+                        if (questions.isNotEmpty()) {
+                            _currentIndex.value = 0
+                            updateQuestion()
+                            _errorMessage.value = null
+                        } else {
+                            _errorMessage.value = "Aucune question reçue."
+                        }
                     }
-                } else {
-                    _errorMessage.value = "invalid code: ${response.response_code}"
+                    4 -> {
+                        TokenManager.resetToken()
+                        loadQuestions(category, difficulty)
+                    }
+                    else -> _errorMessage.value = "Code de réponse invalide : ${response.response_code}"
                 }
-            } catch (e: Exception) {
-                _errorMessage.value = "network error: ${e.localizedMessage}"
+            }.onFailure {
+                _errorMessage.value = "Erreur réseau : ${it.localizedMessage ?: "inconnue"}"
+            }
+        }
+    }
+
+    private fun updateQuestion() {
+        questions.getOrNull(_currentIndex.value)?.let { q ->
+            _question.value = q
+            _answers.value = (q.incorrect_answers + q.correct_answer).shuffled()
+            _selectedAnswer.value = null
+            _isAnswerValidated.value = false
+        }
+    }
+
+    fun selectAnswer(answer: String) {
+        if (!_isAnswerValidated.value) {
+            _selectedAnswer.value = answer
+        }
+    }
+
+    fun validateAnswer() {
+        if (_isAnswerValidated.value || _selectedAnswer.value == null) return
+
+        val correct = _question.value?.correct_answer
+        if (_selectedAnswer.value == correct) {
+            _score.value++
+        }
+        _isAnswerValidated.value = true
+    }
+
+    fun nextQuestion() {
+        if (_currentIndex.value < questions.lastIndex) {
+            _currentIndex.value++
+            updateQuestion()
+        } else {
+            updateUserScoreIfBetter()
+            _errorMessage.value = "END"
+        }
+    }
+
+    fun resetQuiz() {
+        _score.value = 0
+        _currentIndex.value = 0
+        _selectedAnswer.value = null
+        _isAnswerValidated.value = false
+    }
+
+    private fun updateUserScoreIfBetter() {
+        val currentPseudo = pseudo ?: return
+
+        viewModelScope.launch {
+            runCatching {
+                val user = userDao.findUserByPseudo(currentPseudo)
+                if (user != null) {
+                    val currentScore = _score.value
+                    val updatedUser = user.copy(
+                        score = currentScore,
+                        maxScore = maxOf(user.maxScore, currentScore),
+                        updatedAt = Date()
+                    )
+                    userDao.updateUser(updatedUser)
+                }
+            }.onFailure {
+                _errorMessage.value = "Erreur mise à jour score : ${it.localizedMessage}"
             }
         }
     }
