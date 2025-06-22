@@ -14,7 +14,8 @@ interface ApiService {
         @Query("amount") amount: Int = 10,
         @Query("category") category: Int?,
         @Query("difficulty") difficulty: String?,
-        @Query("token") token: String
+        @Query("token") token: String,
+        @Query("encode") encode: String = "base64"
     ): QuizResponse
 
     @GET("api_token.php")

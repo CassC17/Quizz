@@ -1,6 +1,8 @@
 package com.supdevinci.quizz.viewmodel
 
 import android.app.Application
+import android.util.Base64
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.supdevinci.quizz.data.RetrofitInstance
@@ -54,25 +56,43 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
                     difficulty = difficulty,
                     token = token
                 )
+
                 when (response.response_code) {
                     0 -> {
-                        questions = response.results
+                        questions = response.results.map { q ->
+                            val decodedQuestion = q.question.decodeBase64()
+                            val decodedCorrectAnswer = q.correct_answer.decodeBase64()
+                            val decodedIncorrectAnswers = q.incorrect_answers.map { it.decodeBase64() }
+
+                            Log.d("QUIZ", "Q: $decodedQuestion")
+                            Log.d("QUIZ", "Correct: $decodedCorrectAnswer")
+                            decodedIncorrectAnswers.forEachIndexed { i, ans ->
+                                Log.d("QUIZ", "Incorrect[$i]: $ans")
+                            }
+
+                            q.copy(
+                                question = decodedQuestion,
+                                correct_answer = decodedCorrectAnswer,
+                                incorrect_answers = decodedIncorrectAnswers
+                            )
+                        }
+
                         if (questions.isNotEmpty()) {
                             _currentIndex.value = 0
                             updateQuestion()
                             _errorMessage.value = null
                         } else {
-                            _errorMessage.value = "Aucune question reçue."
+                            _errorMessage.value = "questions not recieved"
                         }
                     }
                     4 -> {
                         TokenManager.resetToken()
                         loadQuestions(category, difficulty)
                     }
-                    else -> _errorMessage.value = "Code de réponse invalide : ${response.response_code}"
+                    else -> _errorMessage.value = "invalid code: ${response.response_code}"
                 }
             }.onFailure {
-                _errorMessage.value = "Erreur réseau : ${it.localizedMessage ?: "inconnue"}"
+                _errorMessage.value = "network error: ${it.localizedMessage ?: "inconnue"}"
             }
         }
     }
@@ -135,8 +155,12 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
                     userDao.updateUser(updatedUser)
                 }
             }.onFailure {
-                _errorMessage.value = "Erreur mise à jour score : ${it.localizedMessage}"
+                _errorMessage.value = "update error: ${it.localizedMessage}"
             }
         }
+    }
+
+    private fun String.decodeBase64(): String {
+        return String(Base64.decode(this, Base64.DEFAULT), Charsets.UTF_8)
     }
 }

@@ -1,6 +1,6 @@
 package com.supdevinci.quizz.model
 
-class QuizQuestion (
+data class QuizQuestion (
     val category: String,
     val type: String,
     val difficulty: String,

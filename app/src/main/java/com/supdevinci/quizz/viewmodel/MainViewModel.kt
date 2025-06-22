@@ -36,7 +36,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val userDao: UserDao =
         UserDatabase.getDatabase(application.applicationContext).userDao()
 
-    // ✅ Setters publics
     fun updatePseudo(value: String) {
         _pseudo.value = value
     }
@@ -56,7 +55,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val list = response["trivia_categories"] ?: emptyList()
                 _categories.value = listOf(Category(-1, "Any")) + list
             }.onFailure {
-                _errorMessage.value = "Erreur chargement catégories : ${it.localizedMessage}"
+                _errorMessage.value = "Loading error: ${it.localizedMessage}"
             }
         }
     }
@@ -75,7 +74,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 userDao.insertUser(user)
                 loadBestScores()
             }.onFailure {
-                _errorMessage.value = "Erreur ajout utilisateur : ${it.localizedMessage}"
+                _errorMessage.value = "add user error: ${it.localizedMessage}"
             }
         }
     }
@@ -89,11 +88,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     loadBestScores()
                     onUpdated(updatedUser)
                 } else {
-                    _errorMessage.value = "Aucun utilisateur trouvé avec l’ID $userId"
+                    _errorMessage.value = "no user found with $userId"
                     onUpdated(null)
                 }
             }.onFailure {
-                _errorMessage.value = "Erreur mise à jour score : ${it.localizedMessage}"
+                _errorMessage.value = "update score error: ${it.localizedMessage}"
                 onUpdated(null)
             }
         }
@@ -104,7 +103,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 _bestScores.value = userDao.getBestScores()
             }.onFailure {
-                _errorMessage.value = "Erreur chargement scores : ${it.localizedMessage}"
+                _errorMessage.value = "loading scores error: ${it.localizedMessage}"
             }
         }
     }
@@ -113,7 +112,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return runCatching {
             userDao.findUserByPseudo(pseudo)
         }.onFailure {
-            _errorMessage.value = "Erreur recherche utilisateur : ${it.localizedMessage}"
+            _errorMessage.value = "user search error: ${it.localizedMessage}"
         }.getOrNull()
     }
 
