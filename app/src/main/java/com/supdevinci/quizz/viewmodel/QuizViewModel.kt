@@ -116,6 +116,7 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         if (_isAnswerValidated.value || _selectedAnswer.value == null) return
 
         val correct = _question.value?.correct_answer
+        Log.d("QUIZ", "Validation: selected=${_selectedAnswer.value}, correct=$correct")
         if (_selectedAnswer.value == correct) {
             _score.value++
         }

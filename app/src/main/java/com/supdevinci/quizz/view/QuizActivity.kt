@@ -4,11 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -34,23 +34,24 @@ class QuizActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun QuizScreen(viewModel: QuizViewModel, onFinished: () -> Unit) {
+    val index by viewModel.currentIndex.collectAsState()
     val question by viewModel.question.collectAsState()
     val answers by viewModel.answers.collectAsState()
-    val index by viewModel.currentIndex.collectAsState()
-    val score by viewModel.score.collectAsState()
-    val error by viewModel.errorMessage.collectAsState()
     val selectedAnswer by viewModel.selectedAnswer.collectAsState()
     val isValidated by viewModel.isAnswerValidated.collectAsState()
+    val score by viewModel.score.collectAsState()
+    val error by viewModel.errorMessage.collectAsState()
 
     if (error != null) {
         Column(Modifier.padding(16.dp)) {
             Text(text = error!!, color = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             if (error!!.contains("END")) {
                 Button(onClick = onFinished) {
-                    Text("Voir le score")
+                    Text("SCORE")
                 }
             }
         }
@@ -64,39 +65,45 @@ fun QuizScreen(viewModel: QuizViewModel, onFinished: () -> Unit) {
         return
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text("Score: $score", style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(8.dp))
         Text("Question ${index + 1}/10", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = question!!.question)
+        Text(text = question!!.question, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(16.dp))
 
         val correctAnswer = question!!.correct_answer
 
         answers.forEach { answer ->
-            val targetColor = when {
+            val backgroundColor = when {
                 isValidated && answer == correctAnswer -> MaterialTheme.colorScheme.primaryContainer
                 isValidated && answer == selectedAnswer && answer != correctAnswer -> MaterialTheme.colorScheme.errorContainer
                 selectedAnswer == answer -> MaterialTheme.colorScheme.secondaryContainer
                 else -> MaterialTheme.colorScheme.surfaceVariant
             }
 
-            val animatedColor by animateColorAsState(
-                targetValue = targetColor,
-                label = "AnswerButtonColor"
-            )
-
-            Button(
-                onClick = { viewModel.selectAnswer(answer) },
-                enabled = !isValidated,
+            Surface(
+                color = backgroundColor,
+                shape = MaterialTheme.shapes.medium,
+                tonalElevation = 2.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = animatedColor,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                )
+                    .padding(vertical = 4.dp)
+                    .clickable(enabled = !isValidated) {
+                        viewModel.selectAnswer(answer)
+                    }
             ) {
-                Text(answer)
+                Text(
+                    text = answer,
+                    modifier = Modifier
+                        .padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
@@ -110,18 +117,15 @@ fun QuizScreen(viewModel: QuizViewModel, onFinished: () -> Unit) {
                 onClick = { viewModel.validateAnswer() },
                 enabled = selectedAnswer != null && !isValidated
             ) {
-                Text("Valider")
+                Text("CONFIRM")
             }
 
             Button(
                 onClick = { viewModel.nextQuestion() },
                 enabled = isValidated
             ) {
-                Text("Suivant")
+                Text("NEXT")
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Score: $score", style = MaterialTheme.typography.bodyLarge)
     }
 }
