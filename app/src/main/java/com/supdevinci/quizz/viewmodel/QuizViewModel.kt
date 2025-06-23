@@ -9,6 +9,7 @@ import com.supdevinci.quizz.data.RetrofitInstance
 import com.supdevinci.quizz.data.TokenManager
 import com.supdevinci.quizz.data.local.UserDatabase
 import com.supdevinci.quizz.model.QuizQuestion
+import com.supdevinci.quizz.model.UserEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,17 +39,27 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
     val isAnswerValidated: StateFlow<Boolean> = _isAnswerValidated
 
     private val userDao = UserDatabase.getDatabase(application.applicationContext).userDao()
-
     private var questions: List<QuizQuestion> = emptyList()
     private var pseudo: String? = null
 
     fun initUser(pseudo: String) {
         this.pseudo = pseudo
+        Log.d("QUIZ", "initialised pseudo: $pseudo")
+    }
+
+    fun setError(message: String) {
+        _errorMessage.value = message
     }
 
     fun loadQuestions(category: Int?, difficulty: String) {
+        if (pseudo == null) {
+            setError("no pseudo")
+            Log.e("QUIZ", "error: pseudo not initialised before loadQuestions()")
+            return
+        }
+
         viewModelScope.launch {
-            runCatching {
+            try {
                 val token = TokenManager.getToken()
                 val response = RetrofitInstance.apiService.getQuestion(
                     amount = 10,
@@ -64,12 +75,6 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
                             val decodedCorrectAnswer = q.correct_answer.decodeBase64()
                             val decodedIncorrectAnswers = q.incorrect_answers.map { it.decodeBase64() }
 
-                            Log.d("QUIZ", "Q: $decodedQuestion")
-                            Log.d("QUIZ", "Correct: $decodedCorrectAnswer")
-                            decodedIncorrectAnswers.forEachIndexed { i, ans ->
-                                Log.d("QUIZ", "Incorrect[$i]: $ans")
-                            }
-
                             q.copy(
                                 question = decodedQuestion,
                                 correct_answer = decodedCorrectAnswer,
@@ -82,17 +87,17 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
                             updateQuestion()
                             _errorMessage.value = null
                         } else {
-                            _errorMessage.value = "questions not recieved"
+                            setError("questions not received")
                         }
                     }
                     4 -> {
                         TokenManager.resetToken()
                         loadQuestions(category, difficulty)
                     }
-                    else -> _errorMessage.value = "invalid code: ${response.response_code}"
+                    else -> setError("invalid code: ${response.response_code}")
                 }
-            }.onFailure {
-                _errorMessage.value = "network error: ${it.localizedMessage ?: "inconnue"}"
+            } catch (e: Exception) {
+                setError("network error: ${e.localizedMessage ?: "unknown"}")
             }
         }
     }
@@ -116,7 +121,6 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
         if (_isAnswerValidated.value || _selectedAnswer.value == null) return
 
         val correct = _question.value?.correct_answer
-        Log.d("QUIZ", "Validation: selected=${_selectedAnswer.value}, correct=$correct")
         if (_selectedAnswer.value == correct) {
             _score.value++
         }
@@ -129,7 +133,7 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
             updateQuestion()
         } else {
             updateUserScoreIfBetter()
-            _errorMessage.value = "END"
+            setError("END")
         }
     }
 
@@ -143,22 +147,35 @@ class QuizViewModel(application: Application) : AndroidViewModel(application) {
     private fun updateUserScoreIfBetter() {
         val currentPseudo = pseudo ?: return
 
-        viewModelScope.launch {
-            runCatching {
+        Thread {
+            try {
                 val user = userDao.findUserByPseudo(currentPseudo)
+                val currentScore = _score.value
+                val updatedAt = Date()
+
                 if (user != null) {
-                    val currentScore = _score.value
                     val updatedUser = user.copy(
                         score = currentScore,
                         maxScore = maxOf(user.maxScore, currentScore),
-                        updatedAt = Date()
+                        updatedAt = updatedAt
                     )
+                    Log.d("QUIZ", "update user: $updatedUser")
                     userDao.updateUser(updatedUser)
+                } else {
+                    val newUser = UserEntity(
+                        pseudo = currentPseudo,
+                        score = currentScore,
+                        maxScore = currentScore,
+                        createdAt = updatedAt,
+                        updatedAt = updatedAt
+                    )
+                    Log.d("QUIZ", "insert user: $newUser")
+                    userDao.insertUser(newUser)
                 }
-            }.onFailure {
-                _errorMessage.value = "update error: ${it.localizedMessage}"
+            } catch (e: Exception) {
+                setError("save error: ${e.localizedMessage}")
             }
-        }
+        }.start()
     }
 
     private fun String.decodeBase64(): String {

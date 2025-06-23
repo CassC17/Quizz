@@ -30,15 +30,20 @@ class MainActivity : ComponentActivity() {
         viewModel.loadCategories()
 
         setContent {
-            MainScreen(viewModel = viewModel) { pseudo, categoryId, difficulty ->
-                viewModel.insertUser(pseudo)
-                val intent = Intent(this, QuizActivity::class.java).apply {
-                    putExtra("pseudo", pseudo)
-                    putExtra("category", categoryId)
-                    putExtra("difficulty", difficulty)
+            MainScreen(viewModel = viewModel,
+                onStartQuiz = { pseudo, categoryId, difficulty ->
+                    viewModel.insertUser(pseudo)
+                    val intent = Intent(this, QuizActivity::class.java).apply {
+                        putExtra("pseudo", pseudo)
+                        putExtra("category", categoryId)
+                        putExtra("difficulty", difficulty)
+                    }
+                    startActivity(intent)
+                },
+                onGoToLeaderboard = {
+                    startActivity(Intent(this, BoardActivity::class.java))
                 }
-                startActivity(intent)
-            }
+            )
         }
     }
 }
@@ -46,7 +51,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    onStartQuiz: (String, Int?, String) -> Unit
+    onStartQuiz: (String, Int?, String) -> Unit,
+    onGoToLeaderboard: () -> Unit
 ) {
     val context = LocalContext.current
 
@@ -104,6 +110,13 @@ fun MainScreen(
             enabled = categories.isNotEmpty()
         ) {
             Text("START")
+        }
+
+        OutlinedButton(
+            onClick = onGoToLeaderboard,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("🏆 Leaderboard")
         }
     }
 }

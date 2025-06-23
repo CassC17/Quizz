@@ -79,25 +79,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateUserScoreAndReturn(userId: Int, newScore: Int, onUpdated: (UserEntity?) -> Unit) {
-        viewModelScope.launch {
-            runCatching {
-                val updatedRows = userDao.updateScore(userId, newScore, Date())
-                if (updatedRows > 0) {
-                    val updatedUser = userDao.findById(userId)
-                    loadBestScores()
-                    onUpdated(updatedUser)
-                } else {
-                    _errorMessage.value = "no user found with $userId"
-                    onUpdated(null)
-                }
-            }.onFailure {
-                _errorMessage.value = "update score error: ${it.localizedMessage}"
-                onUpdated(null)
-            }
-        }
-    }
-
     fun loadBestScores() {
         viewModelScope.launch {
             runCatching {
@@ -106,14 +87,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _errorMessage.value = "loading scores error: ${it.localizedMessage}"
             }
         }
-    }
-
-    suspend fun findUserByPseudo(pseudo: String): UserEntity? {
-        return runCatching {
-            userDao.findUserByPseudo(pseudo)
-        }.onFailure {
-            _errorMessage.value = "user search error: ${it.localizedMessage}"
-        }.getOrNull()
     }
 
     fun getCategoryId(): Int? = _selectedCategory.value.takeIf { it.id != -1 }?.id

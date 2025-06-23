@@ -19,4 +19,3 @@ object TokenManager {
         token = null
     }
 }
-

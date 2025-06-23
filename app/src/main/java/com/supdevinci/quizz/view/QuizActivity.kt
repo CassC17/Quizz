@@ -1,34 +1,47 @@
 package com.supdevinci.quizz.view
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.animation.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.supdevinci.quizz.viewmodel.QuizViewModel
 import com.supdevinci.quizz.ui.theme.QuizzTheme
+import com.supdevinci.quizz.viewmodel.QuizViewModel
 
 class QuizActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val pseudo = intent.getStringExtra("pseudo")
         val category = intent.getIntExtra("category", -1).takeIf { it != -1 }
         val difficulty = intent.getStringExtra("difficulty") ?: "easy"
 
         val viewModel: QuizViewModel by viewModels()
-        viewModel.loadQuestions(category, difficulty)
+
+        if (!pseudo.isNullOrBlank()) {
+            viewModel.initUser(pseudo)
+            viewModel.loadQuestions(category, difficulty)
+        } else {
+            viewModel.setError("pseudo missing from intent")
+        }
 
         setContent {
             QuizzTheme {
-                QuizScreen(viewModel = viewModel, onFinished = {
-                    finish()
-                })
+                QuizScreen(
+                    viewModel = viewModel,
+                    onFinished = {
+                        startActivity(Intent(this, BoardActivity::class.java))
+                        finish()
+                    }
+                )
             }
         }
     }
@@ -49,7 +62,7 @@ fun QuizScreen(viewModel: QuizViewModel, onFinished: () -> Unit) {
         Column(Modifier.padding(16.dp)) {
             Text(text = error!!, color = MaterialTheme.colorScheme.error)
             Spacer(modifier = Modifier.height(16.dp))
-            if (error!!.contains("END")) {
+            if (error!!.contains("END", ignoreCase = true)) {
                 Button(onClick = onFinished) {
                     Text("SCORE")
                 }
@@ -100,8 +113,7 @@ fun QuizScreen(viewModel: QuizViewModel, onFinished: () -> Unit) {
             ) {
                 Text(
                     text = answer,
-                    modifier = Modifier
-                        .padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
